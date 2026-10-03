@@ -10,19 +10,27 @@ pipeline {
 
         stage('Install Dependencies') {
             steps {
-                bat 'pip install -r app\\requirements.txt'
+                sh '''
+                    python3 -m venv .venv
+                    . .venv/bin/activate
+                    pip install -r app/requirements.txt pytest
+                '''
             }
         }
 
         stage('Unit Tests') {
             steps {
-                bat 'pytest'
+                sh '''
+                    . .venv/bin/activate
+                    cd app
+                    pytest -v
+                '''
             }
         }
 
         stage('Docker Build') {
             steps {
-                bat 'docker build -t %IMAGE_NAME%:%IMAGE_TAG% .'
+                sh 'docker build -t $IMAGE_NAME:$IMAGE_TAG .'
             }
         }
 
@@ -35,12 +43,16 @@ pipeline {
                         passwordVariable: 'DOCKER_PASSWORD'
                     )
                 ]) {
-                    bat '''
-                        echo %DOCKER_PASSWORD% | docker login -u %DOCKER_USERNAME% --password-stdin
-                        docker push %IMAGE_NAME%:%IMAGE_TAG%
+                    sh '''
+                        echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
+                        docker push $IMAGE_NAME:$IMAGE_TAG
                     '''
                 }
             }
         }
+    }
+
+    post {
+        always { sh 'docker logout || true' }
     }
 }
